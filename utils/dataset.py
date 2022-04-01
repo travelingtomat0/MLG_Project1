@@ -82,3 +82,4 @@ class InputDataset(Dataset):
 
         # TODO: CONCATENATE VECTORS
         # TODO: Use sequence information?
+        # TODO: DNase information important at TSS or at gene-location? (the latter, right?)
