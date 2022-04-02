@@ -78,7 +78,28 @@ class InputDataset(Dataset):
             bw = pyBigWig.open(os.path.join(self.data_path, f'{modality}-bigwig/{self.cell_line}.bigwig'))
         else:
             bw = pyBigWig.open(os.path.join(self.data_path, f'{modality}-bigwig/{self.cell_line}.bw'))
-        resulting_vector = bw.values(chr, start, end)
+        try:
+            resulting_vector = bw.values(chr, start, end)
+        except:
+            # print(end)
+            # print(start)
+            # print(bw.chroms(chr))
+            # Two options:
+            # (1) Prepend & Append 0s depending on case
+            # (2) change view on the regions --> For this, we need to use these cases in bed-file embedding too!!
+            if end > bw.chroms(chr):
+                # resulting_vector = bw.values(chr, start - abs(bw.chroms(chr) - end), bw.chroms(chr))
+                # APPEND
+                resulting_vector = bw.values(chr, start, bw.chroms(chr))
+                resulting_vector.extend([0.0 for k in range(abs(bw.chroms(chr) - end))])
+            elif start < 0:
+                # resulting_vector = bw.values(chr, 0, end+abs(start))
+                # PREPEND:
+                resulting_vector = [0.0 for k in range(abs(start))]
+                resulting_vector.extend(bw.values(chr, 0, end))
+            else:
+                return np.zeros((2*self.window_size, ))
+            #print(len(resulting_vector))
         return np.array(resulting_vector)
 
     def __len__(self):
