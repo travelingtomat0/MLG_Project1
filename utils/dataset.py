@@ -1,4 +1,6 @@
 import numpy as np
+import torch
+
 from torch.utils.data import IterableDataset, Dataset, random_split, ConcatDataset
 import os
 import pandas as pd
@@ -23,10 +25,12 @@ X, y = data[index]
 
 class InputDataset(Dataset):
 
-    def __init__(self, data_directory='./', window_size=200000, cell_line='X1', modality_names=[]):
+    def __init__(self, data_directory='./', window_size=200000, cell_line='X1', objective="train",
+                 modality_names=[]):
         super(InputDataset, self).__init__()
         self.data_path = data_directory
         self.cell_line = cell_line
+        self.objective = objective
         # Below:
         self.modality_names = modality_names
         # Window size refers to offset in __one direction__! Ie. effective size is twice as large.
@@ -37,11 +41,11 @@ class InputDataset(Dataset):
         # ----------
         # Load information
         self.train_info = pd.read_csv(
-            os.path.join(data_directory, 'CAGE-train', 'CAGE-train', f'{cell_line}_train_info.tsv'), sep='\t'
+            os.path.join(data_directory, 'CAGE-train', 'CAGE-train', f'{cell_line}_{objective}_info.tsv'), sep='\t'
         )
 
         self.y = pd.read_csv(
-            os.path.join(data_directory, 'CAGE-train', 'CAGE-train', f'{cell_line}_train_y.tsv'), sep='\t'
+            os.path.join(data_directory, 'CAGE-train', 'CAGE-train', f'{cell_line}_{objective}_y.tsv'), sep='\t'
         )
         # set length of dataset.
         self.length = self.train_info.shape[0]
@@ -145,6 +149,6 @@ class InputDataset(Dataset):
                     output = np.vstack((output, bed_vec, bw_vec))
         # print(output)
 
-        return output, gex
+        return torch.from_numpy(output).float(), gex
         # TODO: Use sequence information?
         # TODO: DNase information important at TSS or at gene-location? (the latter, right?)
