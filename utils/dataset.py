@@ -2,6 +2,7 @@ import numpy as np
 import torch
 
 from torch.utils.data import IterableDataset, Dataset, random_split, ConcatDataset
+from torch.nn import AvgPool1d
 import os
 import pandas as pd
 import pyBigWig
@@ -28,7 +29,7 @@ X, y = data[index]
 class InputDataset(Dataset):
 
     def __init__(self, data_directory='./', window_size=200000, cell_line='X1', objective="train",
-                 modality_names=[], only_bw=False):
+                 modality_names=[], only_bw=False, dim_reduction=None):
         super(InputDataset, self).__init__()
         self.data_path = data_directory
         self.cell_line = cell_line
@@ -159,7 +160,7 @@ class InputDataset(Dataset):
 class Bigwig_Matrix_Builder:
 
     def __init__(self, data_directory='./', window_size=200000, cell_line='X1', objective="train",
-                 modality_names=[]):
+                 modality_names=[], dim_reduction=None):
         self.cell_line = cell_line
         self.data_path = data_directory
         self.window_size = window_size
@@ -206,6 +207,12 @@ class Bigwig_Matrix_Builder:
                     new_start = qsize - info['TSS_end'].values[0]"""
                 bed_vec = self.get_bed_vector(bed_file, chr, lowest_location, highest_location, TSS_start)
                 bw_vec = self.get_bigwig_vector(bw, chr, lowest_location, highest_location)
+                tmp.append(np.multiply(bed_vec, bw_vec))
+
+                # dim_reduction can for instance be nn.avgpool1d
+                if dim_reduction is not None:
+                    bed_vec_reduced = dim_reduction(bed_vec)
+                    bw_vec_reduced = dim_reduction(bw_vec)
                 if i % 100 == 99 and matrix is None:
                     matrix = np.vstack(tmp)
                     tmp = []
@@ -213,10 +220,7 @@ class Bigwig_Matrix_Builder:
                     matrix = np.vstack((matrix, np.vstack(tmp)))
                     print(matrix.shape)
                     tmp = []
-                else:
-                    tmp.append(np.multiply(bed_vec, bw_vec))
             print(tmp)
-
 
     def get_bed_vector(self, bed_file, chr, start, end, TSS_start):
         # TODO: HOW ORIENTATION?

@@ -17,6 +17,8 @@ import torch.nn as nn
 from torch.utils.data import DataLoader, random_split
 
 import statistics
+from scipy.stats import spearmanr
+
 
 
 class ModelWrapper(pl.LightningModule):
@@ -42,15 +44,23 @@ class ModelWrapper(pl.LightningModule):
         x = batch[0][0]
         y = batch[1]
         y_hat = self._model(x)
-        print(y)
-        print(y_hat)
+        # print(y)
+        # print(y_hat)
         return self.loss(y_hat.float(), y.float())
 
     def validation_step(self, batch, batch_idx):
         x = batch[0][0]
         y = batch[1]
         y_hat = self._model(x)
-        return self.loss(y_hat.float(), y.float())
+        # return self.loss(y_hat.float(), y.float())
+        return torch.cat((y.float(), y_hat.float()))
+
+    def validation_epoch_end(self, validation_step_outputs):
+        all_preds = torch.stack(validation_step_outputs)
+        print(spearmanr(all_preds[:, 0], all_preds[:, 1]))
+
+    def spearman_corr(self, vec_1, vec_2):
+        pass
 
     def train_dataloader(self):
         return DataLoader(self.datasets[0], batch_size=self.batch_size,
