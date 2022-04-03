@@ -165,7 +165,8 @@ class InputDataset(Dataset):
 class Bigwig_Matrix_Builder:
 
     def __init__(self, data_directory='./', window_size=200000, cell_line='X1', objective="train",
-                 modality_names=[], dim_reduction=None, num_bins=100, type='combined', overwrite=False):
+                 modality_names=[], dim_reduction=False, num_bins=100, type='combined',
+                 val=False, overwrite=False):
         self.cell_line = cell_line
         self.data_path = data_directory
         self.window_size = window_size
@@ -176,17 +177,25 @@ class Bigwig_Matrix_Builder:
             os.path.join(data_directory, 'CAGE-train', 'CAGE-train', f'{cell_line}_{objective}_info.tsv'), sep='\t'
         )
 
-        if dim_reduction is not None:
+        if dim_reduction is True:
             bin_size = 2*window_size // num_bins
             avg = AvgPool1d(kernel_size=bin_size)
 
         for modality in modality_names:
             # open bigwig file
-            if os.path.exists(os.path.join(self.data_path, f'{modality}-{type}-matrix-{num_bins}-{window_size}.idx')) and not overwrite:
-                with open(os.path.join(self.data_path, f'{modality}-{type}-matrix-{num_bins}-{window_size}.idx'), 'rb') as f:
+            if os.path.exists(os.path.join(self.data_path, f'{cell_line}-{modality}-{type}-matrix-{num_bins}-{window_size}.idx')) \
+                    and not overwrite and not val:
+                with open(os.path.join(self.data_path, f'{cell_line}-{modality}-{type}-matrix-{num_bins}-{window_size}.idx'), 'rb') as f:
                     matrix = pickle.load(f)
                     print(f"{modality} has been loaded from disk.")
                     pass
+            if val:
+                cell_line = self.cell_line
+                self.train_info = pd.read_csv(
+                    os.path.join(data_directory, 'CAGE-train', 'CAGE-train', f'{cell_line}_val_info.tsv'),
+                    sep='\t'
+                )
+                cell_line = cell_line + "-val"
             if os.path.exists(os.path.join(self.data_path, f'{modality}-bigwig/{self.cell_line}.bigwig')):
                 bw = pyBigWig.open(os.path.join(self.data_path, f'{modality}-bigwig/{self.cell_line}.bigwig'))
             else:
@@ -216,12 +225,12 @@ class Bigwig_Matrix_Builder:
                     qsize = bw.chroms(chr)
                     new_end = qsize - info['TSS_start'].values[0]
                     new_start = qsize - info['TSS_end'].values[0]"""
-                bed_vec = self.get_bed_vector(bed_file, chr, lowest_location, highest_location, TSS_start)
-                bw_vec = self.get_bigwig_vector(bw, chr, lowest_location, highest_location)
+                """bed_vec = self.get_bed_vector(bed_file, chr, lowest_location, highest_location, TSS_start)
+                bw_vec = self.get_bigwig_vector(bw, chr, lowest_location, highest_location)"""
                 # dim_reduction can for instance be nn.avgpool1d
-                if dim_reduction is not None:
+                """if dim_reduction is not None:
                     bed_vec = avg(torch.from_numpy(bed_vec).unsqueeze(0)).float()
-                    bw_vec = avg(torch.from_numpy(bw_vec).unsqueeze(0)).float()
+                    bw_vec = avg(torch.from_numpy(bw_vec).unsqueeze(0)).float()"""
 
                 if type == 'combined':
                     bed_vec = self.get_bed_vector(bed_file, chr, lowest_location, highest_location, TSS_start)
@@ -245,8 +254,12 @@ class Bigwig_Matrix_Builder:
                     matrix = np.vstack((matrix, np.vstack(tmp)))
                     #print(matrix.shape)
                     tmp = []
+            # !!Add last elements!!
+            if len(tmp) > 0:
+                matrix = np.vstack((matrix, np.vstack(tmp)))
             print(matrix.shape)
-            with open(os.path.join(self.data_path, f'{modality}-{type}-matrix-{num_bins}-{window_size}.idx'), "wb") as f:
+
+            with open(os.path.join(self.data_path, f'{cell_line}-{modality}-{type}-matrix-{num_bins}-{window_size}.idx'), "wb") as f:
                 print(f'Dumping {modality} with pickle.')
                 pickle.dump(matrix, f)
 
@@ -295,7 +308,11 @@ class Bigwig_Matrix_Builder:
         return np.array(resulting_vector)
 
 """
-data = Bigwig_Matrix_Builder(data_directory='/home/phil/Downloads/ML4G_Project_1_Data', cell_line='X1', modality_names=['DNase', 'H3K27ac', 'H3K4me1', 'H3K4me3', 'H3K36me3'], window_size=20000, dim_reduction=nn.AvgPool1d, num_bins=100, type='bw')
-data = Bigwig_Matrix_Builder(data_directory='/home/phil/Downloads/ML4G_Project_1_Data', cell_line='X1', modality_names=['DNase', 'H3K27ac', 'H3K4me1', 'H3K4me3', 'H3K36me3'], window_size=20000, dim_reduction=nn.AvgPool1d, num_bins=400, type='bw')
-data = Bigwig_Matrix_Builder(data_directory='/home/phil/Downloads/ML4G_Project_1_Data', cell_line='X1', modality_names=['DNase', 'H3K27ac', 'H3K4me1', 'H3K4me3', 'H3K36me3'], window_size=20000, dim_reduction=nn.AvgPool1d, num_bins=100)
-data = Bigwig_Matrix_Builder(data_directory='/home/phil/Downloads/ML4G_Project_1_Data', cell_line='X1', modality_names=['DNase', 'H3K27ac', 'H3K4me1', 'H3K4me3', 'H3K36me3'], window_size=20000, dim_reduction=nn.AvgPool1d, num_bins=400)"""
+data = Bigwig_Matrix_Builder(data_directory='/home/phil/Downloads/ML4G_Project_1_Data', cell_line='X1', modality_names=['DNase', 'H3K27ac', 'H3K4me1', 'H3K4me3', 'H3K36me3'], window_size=20000, dim_reduction=True, num_bins=100, type='bw')
+data = Bigwig_Matrix_Builder(data_directory='/home/phil/Downloads/ML4G_Project_1_Data', cell_line='X1', modality_names=['DNase', 'H3K27ac', 'H3K4me1', 'H3K4me3', 'H3K36me3'], window_size=20000, dim_reduction=True, num_bins=400, type='bw')
+data = Bigwig_Matrix_Builder(data_directory='/home/phil/Downloads/ML4G_Project_1_Data', cell_line='X1', modality_names=['DNase', 'H3K27ac', 'H3K4me1', 'H3K4me3', 'H3K36me3'], window_size=20000, dim_reduction=True, num_bins=100)
+data = Bigwig_Matrix_Builder(data_directory='/home/phil/Downloads/ML4G_Project_1_Data', cell_line='X1', modality_names=['DNase', 'H3K27ac', 'H3K4me1', 'H3K4me3', 'H3K36me3'], window_size=20000, dim_reduction=True, num_bins=400)
+data = Bigwig_Matrix_Builder(data_directory='/home/phil/Downloads/ML4G_Project_1_Data', cell_line='X2', modality_names=['DNase', 'H3K27ac', 'H3K4me1', 'H3K4me3', 'H3K36me3'], window_size=20000, dim_reduction=True, num_bins=100, type='bw')
+data = Bigwig_Matrix_Builder(data_directory='/home/phil/Downloads/ML4G_Project_1_Data', cell_line='X2', modality_names=['DNase', 'H3K27ac', 'H3K4me1', 'H3K4me3', 'H3K36me3'], window_size=20000, dim_reduction=True, num_bins=400, type='bw')
+data = Bigwig_Matrix_Builder(data_directory='/home/phil/Downloads/ML4G_Project_1_Data', cell_line='X2', modality_names=['DNase', 'H3K27ac', 'H3K4me1', 'H3K4me3', 'H3K36me3'], window_size=20000, dim_reduction=True, num_bins=100)
+data = Bigwig_Matrix_Builder(data_directory='/home/phil/Downloads/ML4G_Project_1_Data', cell_line='X2', modality_names=['DNase', 'H3K27ac', 'H3K4me1', 'H3K4me3', 'H3K36me3'], window_size=20000, dim_reduction=True, num_bins=400)"""
