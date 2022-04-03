@@ -47,17 +47,17 @@ class ModelWrapper(pl.LightningModule):
         return self.loss(y_hat.float(), y.float())
 
     def validation_step(self, batch, batch_idx):
-        x = batch[0]
+        x = batch[0][0]
         y = batch[1]
         y_hat = self._model(x)
         return self.loss(y_hat.float(), y.float())
 
     def train_dataloader(self):
         return DataLoader(self.datasets[0], batch_size=self.batch_size,
-                          shuffle=True, drop_last=True)
+                          shuffle=True, drop_last=True, num_workers=8)
 
     def val_dataloader(self):
-        return DataLoader(self.datasets[1], batch_size=self.batch_size)
+        return DataLoader(self.datasets[1], batch_size=self.batch_size, num_workers=8)
 
     """def test_dataloader(self):
         return DataLoader(self.datasets[2], batch_size=self.batch_size)"""

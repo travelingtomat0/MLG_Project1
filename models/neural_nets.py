@@ -25,3 +25,23 @@ class ConvolutionalModel(nn.Module):
     def forward(self, x):
         # x = torch.from_numpy(x).float()
         return self.layers(x)[0]
+
+
+class SmallConvolutionalModel(nn.Module):
+
+    def __init__(self, c=10, d=None, k=None, window_size=50000, batch_size=1):
+        super(SmallConvolutionalModel, self).__init__()
+        self.layers = nn.Sequential(
+            OrderedDict([
+                ('Conv1', nn.Conv1d(in_channels=c, out_channels=1, kernel_size=10, stride=10)),
+                ('ReLU1', nn.ReLU()),
+                ('MaxPool1', nn.MaxPool1d(kernel_size=10)),
+                ('Linear', nn.Linear(in_features=400, out_features=1)),
+                # ('Final Activation', nn.ReLU())
+                ('Flatten', nn.Flatten(0))
+            ])
+        )
+
+    def forward(self, x):
+        # x = torch.from_numpy(x).float()
+        return self.layers(x)
