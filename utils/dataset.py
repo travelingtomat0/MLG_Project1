@@ -119,8 +119,10 @@ class InputDataset(Dataset):
         gex = self.y.loc[self.y['gene_name'] == gene_name]['gex'].values[0]
 
         # Use gene length for normalization?
-        gene_length = info['gene_end'].values[0] - info['gene_start'].values[0]
-        # gex = gex / gene_length
+        """gene_length = info['gene_end'].values[0] - info['gene_start'].values[0]
+        print(f'GEX before Norm: {gex}')
+        gex = gex / gene_length
+        print(f'GEX after Norm: {gex}')"""
         # Get the window
         lowest_location = info['TSS_start'].values[0] - self.window_size
         # highest_location = info['TSS_end'][0] + self.window_size

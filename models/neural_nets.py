@@ -37,7 +37,7 @@ class SmallConvolutionalModel(nn.Module):
                 ('ReLU1', nn.ReLU()),
                 ('MaxPool1', nn.MaxPool1d(kernel_size=10)),
                 ('Linear', nn.Linear(in_features=400, out_features=1)),
-                # ('Final Activation', nn.ReLU())
+                ('Final Activation', nn.ReLU()),
                 ('Flatten', nn.Flatten(0))
             ])
         )
