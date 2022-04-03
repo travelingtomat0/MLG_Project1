@@ -44,4 +44,6 @@ class SmallConvolutionalModel(nn.Module):
 
     def forward(self, x):
         # x = torch.from_numpy(x).float()
+        if len(x.shape) < 3:
+            x = x.unsqueeze(0)
         return self.layers(x)
