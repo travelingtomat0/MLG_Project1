@@ -39,6 +39,8 @@ class InputDataset(Dataset):
         self.modality_names = modality_names
         # Window size refers to offset in __one direction__! Ie. effective size is twice as large.
         self.window_size = window_size
+        # self.dim_reduction = dim_reduction(kernel_size=10)
+        self.dim_reduction = AvgPool1d(kernel_size=10)
 
         # ----------
         # Initialize
@@ -137,16 +139,19 @@ class InputDataset(Dataset):
         # Get binary input vector eg. methylation, acetylation etc. from .bed files.
         output = None
         for m in self.modality_names:
+            bed_vec = self.get_bed_vector(m, chr, lowest_location, highest_location, TSS_start)
+            bw_vec = self.get_bigwig_vector(m, chr, lowest_location, highest_location)
+            """if self.dim_reduction is not None:
+                avg = AvgPool1d(kernel_size=10)
+                print(avg(torch.from_numpy(bed_vec).unsqueeze(0)))
+                bed_vec = avg(torch.from_numpy(bed_vec))
+                bw_vec = avg(torch.from_numpy(bw_vec))"""
             if output is None:
-                bed_vec = self.get_bed_vector(m, chr, lowest_location, highest_location, TSS_start)
-                bw_vec = self.get_bigwig_vector(m, chr, lowest_location, highest_location)
                 if self.only_bw:
                     output = np.multiply(bed_vec, bw_vec)
                 else:
                     output = np.vstack((bed_vec, bw_vec))
             else:
-                bed_vec = self.get_bed_vector(m, chr, lowest_location, highest_location, TSS_start)
-                bw_vec = self.get_bigwig_vector(m, chr, lowest_location, highest_location)
                 if self.only_bw:
                     output = np.vstack((output, np.multiply(bed_vec, bw_vec)))
                 else:
@@ -160,7 +165,7 @@ class InputDataset(Dataset):
 class Bigwig_Matrix_Builder:
 
     def __init__(self, data_directory='./', window_size=200000, cell_line='X1', objective="train",
-                 modality_names=[], dim_reduction=None):
+                 modality_names=[], dim_reduction=None, num_bins=100, type='combined', overwrite=False):
         self.cell_line = cell_line
         self.data_path = data_directory
         self.window_size = window_size
@@ -171,11 +176,17 @@ class Bigwig_Matrix_Builder:
             os.path.join(data_directory, 'CAGE-train', 'CAGE-train', f'{cell_line}_{objective}_info.tsv'), sep='\t'
         )
 
+        if dim_reduction is not None:
+            bin_size = 2*window_size // num_bins
+            avg = AvgPool1d(kernel_size=bin_size)
+
         for modality in modality_names:
             # open bigwig file
-            if os.path.exists(os.path.join(self.data_path, f'{modality}-bigwig-matrix')):
-                with open(os.path.join(self.data_path, f'{modality}-bigwig-matrix')) as f:
+            if os.path.exists(os.path.join(self.data_path, f'{modality}-{type}-matrix-{num_bins}-{window_size}.idx')) and not overwrite:
+                with open(os.path.join(self.data_path, f'{modality}-{type}-matrix-{num_bins}-{window_size}.idx'), 'rb') as f:
                     matrix = pickle.load(f)
+                    print(f"{modality} has been loaded from disk.")
+                    pass
             if os.path.exists(os.path.join(self.data_path, f'{modality}-bigwig/{self.cell_line}.bigwig')):
                 bw = pyBigWig.open(os.path.join(self.data_path, f'{modality}-bigwig/{self.cell_line}.bigwig'))
             else:
@@ -207,20 +218,37 @@ class Bigwig_Matrix_Builder:
                     new_start = qsize - info['TSS_end'].values[0]"""
                 bed_vec = self.get_bed_vector(bed_file, chr, lowest_location, highest_location, TSS_start)
                 bw_vec = self.get_bigwig_vector(bw, chr, lowest_location, highest_location)
-                tmp.append(np.multiply(bed_vec, bw_vec))
-
                 # dim_reduction can for instance be nn.avgpool1d
                 if dim_reduction is not None:
-                    bed_vec_reduced = dim_reduction(bed_vec)
-                    bw_vec_reduced = dim_reduction(bw_vec)
+                    bed_vec = avg(torch.from_numpy(bed_vec).unsqueeze(0)).float()
+                    bw_vec = avg(torch.from_numpy(bw_vec).unsqueeze(0)).float()
+
+                if type == 'combined':
+                    bed_vec = self.get_bed_vector(bed_file, chr, lowest_location, highest_location, TSS_start)
+                    bw_vec = self.get_bigwig_vector(bw, chr, lowest_location, highest_location)
+                    if dim_reduction is not None:
+                        bed_vec = avg(torch.from_numpy(bed_vec).unsqueeze(0)).float()
+                        bw_vec = avg(torch.from_numpy(bw_vec).unsqueeze(0)).float()
+                    tmp.append(np.multiply(bed_vec, bw_vec))
+                elif type == 'bw':
+                    bw_vec = self.get_bigwig_vector(bw, chr, lowest_location, highest_location)
+                    if dim_reduction is not None:
+                        bw_vec = avg(torch.from_numpy(bw_vec).unsqueeze(0)).float()
+                    tmp.append(bw_vec)
+                else:
+                    print(f'Problem parameter type={type}')
+
                 if i % 100 == 99 and matrix is None:
                     matrix = np.vstack(tmp)
                     tmp = []
                 elif i % 100 == 99:
                     matrix = np.vstack((matrix, np.vstack(tmp)))
-                    print(matrix.shape)
+                    #print(matrix.shape)
                     tmp = []
-            print(tmp)
+            print(matrix.shape)
+            with open(os.path.join(self.data_path, f'{modality}-{type}-matrix-{num_bins}-{window_size}.idx'), "wb") as f:
+                print(f'Dumping {modality} with pickle.')
+                pickle.dump(matrix, f)
 
     def get_bed_vector(self, bed_file, chr, start, end, TSS_start):
         # TODO: HOW ORIENTATION?
@@ -265,3 +293,9 @@ class Bigwig_Matrix_Builder:
                 return np.zeros((2*self.window_size, ))
             # print(len(resulting_vector))
         return np.array(resulting_vector)
+
+"""
+data = Bigwig_Matrix_Builder(data_directory='/home/phil/Downloads/ML4G_Project_1_Data', cell_line='X1', modality_names=['DNase', 'H3K27ac', 'H3K4me1', 'H3K4me3', 'H3K36me3'], window_size=20000, dim_reduction=nn.AvgPool1d, num_bins=100, type='bw')
+data = Bigwig_Matrix_Builder(data_directory='/home/phil/Downloads/ML4G_Project_1_Data', cell_line='X1', modality_names=['DNase', 'H3K27ac', 'H3K4me1', 'H3K4me3', 'H3K36me3'], window_size=20000, dim_reduction=nn.AvgPool1d, num_bins=400, type='bw')
+data = Bigwig_Matrix_Builder(data_directory='/home/phil/Downloads/ML4G_Project_1_Data', cell_line='X1', modality_names=['DNase', 'H3K27ac', 'H3K4me1', 'H3K4me3', 'H3K36me3'], window_size=20000, dim_reduction=nn.AvgPool1d, num_bins=100)
+data = Bigwig_Matrix_Builder(data_directory='/home/phil/Downloads/ML4G_Project_1_Data', cell_line='X1', modality_names=['DNase', 'H3K27ac', 'H3K4me1', 'H3K4me3', 'H3K36me3'], window_size=20000, dim_reduction=nn.AvgPool1d, num_bins=400)"""

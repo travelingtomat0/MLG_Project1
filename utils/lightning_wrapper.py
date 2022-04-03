@@ -12,6 +12,7 @@
 import numpy as np
 import pytorch_lightning as pl
 import torch
+import math
 
 import torch.nn as nn
 from torch.utils.data import DataLoader, random_split
@@ -44,9 +45,9 @@ class ModelWrapper(pl.LightningModule):
         x = batch[0][0]
         y = batch[1]
         y_hat = self._model(x)
-        # print(y)
-        # print(y_hat)
-        return self.loss(y_hat.float(), y.float())
+        print(y)
+        print(y_hat)
+        return torch.log(self.loss(y_hat.float(), y.float()) + 1)
 
     def validation_step(self, batch, batch_idx):
         x = batch[0][0]
