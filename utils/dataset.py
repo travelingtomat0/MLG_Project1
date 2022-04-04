@@ -316,3 +316,46 @@ data = Bigwig_Matrix_Builder(data_directory='/home/phil/Downloads/ML4G_Project_1
 data = Bigwig_Matrix_Builder(data_directory='/home/phil/Downloads/ML4G_Project_1_Data', cell_line='X2', modality_names=['DNase', 'H3K27ac', 'H3K4me1', 'H3K4me3', 'H3K36me3'], window_size=20000, dim_reduction=True, num_bins=400, type='bw')
 data = Bigwig_Matrix_Builder(data_directory='/home/phil/Downloads/ML4G_Project_1_Data', cell_line='X2', modality_names=['DNase', 'H3K27ac', 'H3K4me1', 'H3K4me3', 'H3K36me3'], window_size=20000, dim_reduction=True, num_bins=100)
 data = Bigwig_Matrix_Builder(data_directory='/home/phil/Downloads/ML4G_Project_1_Data', cell_line='X2', modality_names=['DNase', 'H3K27ac', 'H3K4me1', 'H3K4me3', 'H3K36me3'], window_size=20000, dim_reduction=True, num_bins=400)"""
+
+class RegressionData:
+
+    def __init__(self, data_path="./", cell_line="X1", modalities=[], type='combined', num_bins=400, window_size=20000,
+                 objective='train'):
+        if objective != 'test':
+            self.y = pd.read_csv(os.path.join(data_path, 'CAGE-train', 'CAGE-train', f'{cell_line}_{objective}_y.tsv'), sep='\t')
+            try:
+                self.y = self.y[:]['gex'].values
+            except:
+                self.y = self.y[0:-10]['gex'].values
+
+        self.matrix = []
+        for modality in modalities:
+            with open(os.path.join(data_path, f'{cell_line}-{modality}-{type}-matrix-{num_bins}-{window_size}.idx'), 'rb') as f:
+                m = pickle.load(f)
+                self.matrix.append(m)
+
+        self.matrix = np.hstack(self.matrix)
+        print(f'Number of NaNs in matrix: {np.count_nonzero(np.isnan(self.matrix))}')
+        self.matrix = np.nan_to_num(self.matrix)
+
+        if objective == 'test':
+            return
+
+        self.val_matrix = []
+        for modality in modalities:
+            with open(os.path.join(data_path, f'{cell_line}-val-{modality}-{type}-matrix-{num_bins}-{window_size}.idx'), 'rb') as f:
+                m = pickle.load(f)
+                self.val_matrix.append(m)
+
+        self.val_matrix = np.hstack(self.val_matrix)
+        print(f'Number of NaNs in matrix: {np.count_nonzero(np.isnan(self.val_matrix))}')
+        self.val_matrix = np.nan_to_num(self.val_matrix)
+        self.y_val = pd.read_csv(
+            os.path.join(data_path, 'CAGE-train', 'CAGE-train', f'{cell_line}_val_y.tsv'), sep='\t'
+        )['gex'].values
+
+# from scipy.stats import spearmanr
+# clf = linear_model.Lasso(alpha=1000)
+# clf.fit(r.matrix, r.y)
+# p = clf.predict(r.val_matrix)
+# spearmanr(clf.predict(r.val_matrix)-lol, r.y_val)
