@@ -45,9 +45,9 @@ class ModelWrapper(pl.LightningModule):
         x = batch[0][0]
         y = batch[1]
         y_hat = self._model(x)
-        print(y)
-        print(y_hat)
-        return torch.log(self.loss(y_hat.float(), y.float()) + 1)
+        """print(y)
+        print(y_hat)"""
+        return self.loss(y_hat.float(), y.float())
 
     def validation_step(self, batch, batch_idx):
         x = batch[0][0]
@@ -58,10 +58,17 @@ class ModelWrapper(pl.LightningModule):
 
     def validation_epoch_end(self, validation_step_outputs):
         all_preds = torch.stack(validation_step_outputs)
+        print(all_preds)
         print(spearmanr(all_preds[:, 0], all_preds[:, 1]))
+        return all_preds
 
-    def spearman_corr(self, vec_1, vec_2):
-        pass
+    def predict_step(self, batch, batch_idx):
+        x = batch[0][0]
+        y_hat = self._model(x)
+        return y_hat
+
+    def on_predict_epoch_end(self, results):
+        return results
 
     def train_dataloader(self):
         return DataLoader(self.datasets[0], batch_size=self.batch_size,
@@ -70,5 +77,8 @@ class ModelWrapper(pl.LightningModule):
     def val_dataloader(self):
         return DataLoader(self.datasets[1], batch_size=self.batch_size, num_workers=8)
 
-    """def test_dataloader(self):
-        return DataLoader(self.datasets[2], batch_size=self.batch_size)"""
+    def test_dataloader(self):
+        return DataLoader(self.datasets[2], batch_size=self.batch_size)
+
+    def predict_dataloader(self):
+        return DataLoader(self.datasets[2], batch_size=self.batch_size, num_workers=8)

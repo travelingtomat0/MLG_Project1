@@ -182,13 +182,17 @@ class Bigwig_Matrix_Builder:
             avg = AvgPool1d(kernel_size=bin_size)
 
         for modality in modality_names:
+            loaded = False
             # open bigwig file
             if os.path.exists(os.path.join(self.data_path, f'{cell_line}-{modality}-{type}-matrix-{num_bins}-{window_size}.idx')) \
                     and not overwrite and not val:
                 with open(os.path.join(self.data_path, f'{cell_line}-{modality}-{type}-matrix-{num_bins}-{window_size}.idx'), 'rb') as f:
                     matrix = pickle.load(f)
                     print(f"{modality} has been loaded from disk.")
-                    pass
+                    loaded = True
+
+            print(loaded)
+
             if val:
                 cell_line = self.cell_line
                 self.train_info = pd.read_csv(
@@ -208,60 +212,61 @@ class Bigwig_Matrix_Builder:
             tmp = []
             matrix = None
 
-            for i in tqdm(range(len(self.train_info)), desc=f"Loading {modality} Matrix"):
-                info = self.train_info[i: i+1]
-                gene_name = info['gene_name'].values[0]
-                # Get the window
-                lowest_location = info['TSS_start'].values[0] - self.window_size
-                highest_location = info['TSS_start'].values[0] + self.window_size
-                chr = info['chr'].values[0]
-                TSS_start = info['TSS_start'].values[0]
-                # TODO: STRAND +/-
-                """
-                Negative-strand-coordinate-qStart = qSize - qEnd
-                Negative-strand-coordinate-qEnd   = qSize - qStart
-                """
-                """if info['strand'].values[0] == '-':
-                    qsize = bw.chroms(chr)
-                    new_end = qsize - info['TSS_start'].values[0]
-                    new_start = qsize - info['TSS_end'].values[0]"""
-                """bed_vec = self.get_bed_vector(bed_file, chr, lowest_location, highest_location, TSS_start)
-                bw_vec = self.get_bigwig_vector(bw, chr, lowest_location, highest_location)"""
-                # dim_reduction can for instance be nn.avgpool1d
-                """if dim_reduction is not None:
-                    bed_vec = avg(torch.from_numpy(bed_vec).unsqueeze(0)).float()
-                    bw_vec = avg(torch.from_numpy(bw_vec).unsqueeze(0)).float()"""
-
-                if type == 'combined':
-                    bed_vec = self.get_bed_vector(bed_file, chr, lowest_location, highest_location, TSS_start)
-                    bw_vec = self.get_bigwig_vector(bw, chr, lowest_location, highest_location)
-                    if dim_reduction is not None:
+            if not loaded:
+                for i in tqdm(range(len(self.train_info)), desc=f"Loading {modality} Matrix"):
+                    info = self.train_info[i: i+1]
+                    gene_name = info['gene_name'].values[0]
+                    # Get the window
+                    lowest_location = info['TSS_start'].values[0] - self.window_size
+                    highest_location = info['TSS_start'].values[0] + self.window_size
+                    chr = info['chr'].values[0]
+                    TSS_start = info['TSS_start'].values[0]
+                    # TODO: STRAND +/-
+                    """
+                    Negative-strand-coordinate-qStart = qSize - qEnd
+                    Negative-strand-coordinate-qEnd   = qSize - qStart
+                    """
+                    """if info['strand'].values[0] == '-':
+                        qsize = bw.chroms(chr)
+                        new_end = qsize - info['TSS_start'].values[0]
+                        new_start = qsize - info['TSS_end'].values[0]"""
+                    """bed_vec = self.get_bed_vector(bed_file, chr, lowest_location, highest_location, TSS_start)
+                    bw_vec = self.get_bigwig_vector(bw, chr, lowest_location, highest_location)"""
+                    # dim_reduction can for instance be nn.avgpool1d
+                    """if dim_reduction is not None:
                         bed_vec = avg(torch.from_numpy(bed_vec).unsqueeze(0)).float()
-                        bw_vec = avg(torch.from_numpy(bw_vec).unsqueeze(0)).float()
-                    tmp.append(np.multiply(bed_vec, bw_vec))
-                elif type == 'bw':
-                    bw_vec = self.get_bigwig_vector(bw, chr, lowest_location, highest_location)
-                    if dim_reduction is not None:
-                        bw_vec = avg(torch.from_numpy(bw_vec).unsqueeze(0)).float()
-                    tmp.append(bw_vec)
-                else:
-                    print(f'Problem parameter type={type}')
+                        bw_vec = avg(torch.from_numpy(bw_vec).unsqueeze(0)).float()"""
 
-                if i % 100 == 99 and matrix is None:
-                    matrix = np.vstack(tmp)
-                    tmp = []
-                elif i % 100 == 99:
+                    if type == 'combined':
+                        bed_vec = self.get_bed_vector(bed_file, chr, lowest_location, highest_location, TSS_start)
+                        bw_vec = self.get_bigwig_vector(bw, chr, lowest_location, highest_location)
+                        if dim_reduction is not None:
+                            bed_vec = avg(torch.from_numpy(bed_vec).unsqueeze(0)).float()
+                            bw_vec = avg(torch.from_numpy(bw_vec).unsqueeze(0)).float()
+                        tmp.append(np.multiply(bed_vec, bw_vec))
+                    elif type == 'bw':
+                        bw_vec = self.get_bigwig_vector(bw, chr, lowest_location, highest_location)
+                        if dim_reduction is not None:
+                            bw_vec = avg(torch.from_numpy(bw_vec).unsqueeze(0)).float()
+                        tmp.append(bw_vec)
+                    else:
+                        print(f'Problem parameter type={type}')
+
+                    if i % 100 == 99 and matrix is None:
+                        matrix = np.vstack(tmp)
+                        tmp = []
+                    elif i % 100 == 99:
+                        matrix = np.vstack((matrix, np.vstack(tmp)))
+                        #print(matrix.shape)
+                        tmp = []
+                # !!Add last elements!!
+                if len(tmp) > 0:
                     matrix = np.vstack((matrix, np.vstack(tmp)))
-                    #print(matrix.shape)
-                    tmp = []
-            # !!Add last elements!!
-            if len(tmp) > 0:
-                matrix = np.vstack((matrix, np.vstack(tmp)))
-            print(matrix.shape)
+                print(matrix.shape)
 
-            with open(os.path.join(self.data_path, f'{cell_line}-{modality}-{type}-matrix-{num_bins}-{window_size}.idx'), "wb") as f:
-                print(f'Dumping {modality} with pickle.')
-                pickle.dump(matrix, f)
+                with open(os.path.join(self.data_path, f'{cell_line}-{modality}-{type}-matrix-{num_bins}-{window_size}.idx'), "wb") as f:
+                    print(f'Dumping {modality} with pickle.')
+                    pickle.dump(matrix, f)
 
     def get_bed_vector(self, bed_file, chr, start, end, TSS_start):
         # TODO: HOW ORIENTATION?
@@ -306,6 +311,29 @@ class Bigwig_Matrix_Builder:
                 return np.zeros((2*self.window_size, ))
             # print(len(resulting_vector))
         return np.array(resulting_vector)
+
+
+class SimpleDataset(Dataset):
+
+    def __init__(self, data_x, data_y, num_modalities=5, bin_length=400, log_transform=False):
+        self.X = torch.tensor(data_x)
+        self.y = data_y
+        if log_transform:
+            self.y = np.ceil(np.log(self.y + 1.0))
+        self.m = num_modalities
+        self.b = bin_length
+
+    def __len__(self):
+        return self.X.shape[0]
+
+    def __getitem__(self, index):
+        x = self.X[index]
+        res = []
+        for i in range(0, self.m):
+            res.append(x[i:i+self.b])
+        x = np.vstack(res)
+        y = self.y[index]
+        return torch.tensor(x), y
 
 """
 data = Bigwig_Matrix_Builder(data_directory='/home/phil/Downloads/ML4G_Project_1_Data', cell_line='X1', modality_names=['DNase', 'H3K27ac', 'H3K4me1', 'H3K4me3', 'H3K36me3'], window_size=20000, dim_reduction=True, num_bins=100, type='bw')

@@ -1,6 +1,7 @@
 import numpy as np
 import torch
 from torch import nn
+#import nn as nn_extra
 
 from collections import OrderedDict
 
@@ -48,4 +49,45 @@ class SmallConvolutionalModel(nn.Module):
         # x = torch.from_numpy(x).float()
         if len(x.shape) < 3:
             x = x.unsqueeze(0)
+        return self.layers(x)
+
+class BinnedConvolutionalModel(nn.Module):
+
+    def __init__(self, c=5):
+        super(BinnedConvolutionalModel, self).__init__()
+        self.layers = nn.Sequential(
+            OrderedDict([
+                ('Conv1', nn.Conv1d(in_channels=c, out_channels=1, kernel_size=10,)),
+                ('ReLU1', nn.ReLU()),
+                ('MaxPool1', nn.MaxPool1d(kernel_size=4)),
+                ('Linear', nn.Linear(in_features=97, out_features=10)),
+                ('ReLU1', nn.ReLU()),
+                ('Linear2', nn.Linear(in_features=10, out_features=1)),
+                ('Flatten', nn.Flatten(0))
+            ])
+        )
+        
+    def forward(self, x):
+        # x = torch.from_numpy(x).float()
+        if len(x.shape) < 3:
+            x = x.unsqueeze(0)
+        return self.layers(x)
+
+
+class DeepChrome(nn.Module):
+
+    def __init__(self, k):
+        super(DeepChrome, self).__init__()
+        self.layers = nn.Sequential(
+            OrderedDict([
+                ('Linear', nn_extra.TemporalConvolution()),
+                ('ReLU1', nn.ReLU()),
+                ('MaxPool1', nn.MaxPool1d(kernel_size=10)),
+                ('Linear', nn.Linear(in_features=20, out_features=k)),
+                # ('ReLU2', nn.ReLU()),
+            ])
+        )
+
+    def forward(self, x):
+        # x = torch.from_numpy(x).float()
         return self.layers(x)
